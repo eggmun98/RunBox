@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "description": "Runbox desktop code runner built with Electron, React, and an extensible language adapter model.",
+  "runboxUpdater": {
+    "provider": "github",
+    "owner": "",
+    "repo": ""
+  },
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -24,7 +29,8 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ]
     },
     "win": {
@@ -35,6 +41,7 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "electron-updater": "^6.8.3",
     "monaco-editor": "^0.52.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

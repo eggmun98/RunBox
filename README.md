@@ -27,6 +27,7 @@ npm run package:win
 - Separate stdout and stderr panels
 - Timeout and stop controls
 - JavaScript execution in an isolated child process
+- Update status card with GitHub Releases auto-update hooks
 
 ## Architecture
 
@@ -43,3 +44,15 @@ npm run package:win
 3. Register the runner in `src/main/runners/registry.ts`.
 4. The UI will pick it up from the shared language registry response.
 
+## Auto updates
+
+Runbox now includes an update manager wired for GitHub Releases via `electron-updater`.
+
+1. Set `runboxUpdater.owner` and `runboxUpdater.repo` in `package.json`.
+2. Publish packaged builds to that GitHub repository's Releases page.
+3. Use `npm run package:mac` and `npm run package:win` to generate installer artifacts.
+
+Notes:
+
+- macOS auto-update needs the `zip` target alongside `dmg`, which is already enabled.
+- In dev mode, update checks stay disabled. Test updates with a packaged build.

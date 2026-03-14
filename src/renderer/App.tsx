@@ -139,6 +139,32 @@ function normalizeEditorWidth(editorWidthPercent: number | undefined): number {
   )
 }
 
+function handleEditorWillMount(monaco: typeof import('monaco-editor')): void {
+  monaco.editor.defineTheme('runbox-night', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'comment', foreground: '6B7390' },
+      { token: 'keyword', foreground: '8C7CFF' },
+      { token: 'number', foreground: 'FFD98A' },
+      { token: 'string', foreground: '7DEBFF' },
+      { token: 'delimiter', foreground: 'AAB5D6' }
+    ],
+    colors: {
+      'editor.background': '#09101d',
+      'editor.foreground': '#edf2ff',
+      'editorLineNumber.foreground': '#52607f',
+      'editorLineNumber.activeForeground': '#d8e0fb',
+      'editorCursor.foreground': '#6ff2ff',
+      'editor.selectionBackground': '#19345a',
+      'editor.inactiveSelectionBackground': '#132845',
+      'editor.lineHighlightBackground': '#0d1628',
+      'editorIndentGuide.background1': '#17243d',
+      'editorIndentGuide.activeBackground1': '#2d4574'
+    }
+  })
+}
+
 function buildInitialWorkspace(languages: LanguageDefinition[]): {
   tabs: WorkspaceTab[]
   activeTabId: string
@@ -564,27 +590,20 @@ export default function App(): JSX.Element {
     await window.runbox.stopRun()
   }
 
-  const statusMessage = activeTab?.status ?? workspaceMessage
-  const tabSummaryLabel = `${tabs.length} ${tabs.length === 1 ? 'tab' : 'tabs'}`
-  const activityLabel = activeTab?.isRunning ? 'Live execution' : 'Workspace ready'
-
   return (
     <main className="shell">
       <section className="workspace">
         <header className="toolbar">
           <div className="brand-block">
-            <p className="eyebrow">Local-first desktop playground</p>
-            <h1>Runbox</h1>
-            <p className="subtitle">
-              A focused space for fast JavaScript experiments with persistent tabs,
-              instant output, and a cleaner desktop workflow.
+            <p className="eyebrow">
+              <span className="eyebrow-pulse"></span>
+              Local-first desktop playground
             </p>
-            <div className="brand-badges">
-              <span className="info-chip">{tabSummaryLabel}</span>
-              <span className="info-chip">
-                {selectedLanguage?.displayName ?? 'Loading language'}
-              </span>
-              <span className="info-chip">Saved locally</span>
+            <div className="brand-heading">
+              <span className="brand-mark">R</span>
+              <div className="brand-copy">
+                <h1>Runbox</h1>
+              </div>
             </div>
           </div>
 
@@ -643,29 +662,6 @@ export default function App(): JSX.Element {
             </div>
           </div>
         </header>
-
-        <section className="status-strip">
-          <div className="status-card status-card-primary">
-            <span className="status-caption">Workspace</span>
-            <span
-              className={activeTab?.isRunning ? 'status-pill is-running' : 'status-pill'}
-            >
-              {activeTab?.isRunning ? 'Running' : 'Idle'}
-            </span>
-            <strong className="status-metric">{activityLabel}</strong>
-            <p>{tabSummaryLabel} open in the current session.</p>
-          </div>
-
-          <div className="status-card">
-            <span className="status-caption">Runner status</span>
-            <p>{statusMessage}</p>
-          </div>
-
-          <div className="status-card">
-            <span className="status-caption">Language profile</span>
-            <p>{selectedLanguage?.description ?? workspaceMessage}</p>
-          </div>
-        </section>
 
         <section className="split-pane" ref={splitPaneRef} style={splitPaneStyle}>
           <article className="pane pane-editor">
@@ -734,17 +730,21 @@ export default function App(): JSX.Element {
                   path={`${activeTab?.id ?? 'workspace'}.${selectedLanguage?.extension ?? 'txt'}`}
                   language={selectedLanguage?.monacoLanguage ?? 'javascript'}
                   value={activeTab?.code ?? ''}
+                  beforeMount={handleEditorWillMount}
                   onChange={(nextValue) => handleCodeChange(nextValue ?? '')}
-                  theme="vs-light"
+                  theme="runbox-night"
                   options={{
                     automaticLayout: true,
-                    fontFamily: 'Iosevka, SFMono-Regular, Consolas, monospace',
+                    fontFamily: 'IBM Plex Mono, Iosevka, SFMono-Regular, Consolas, monospace',
                     fontSize: 15,
+                    cursorBlinking: 'smooth',
+                    cursorSmoothCaretAnimation: 'on',
                     lineNumbersMinChars: 3,
                     minimap: { enabled: false },
                     padding: { top: 20, bottom: 20 },
                     roundedSelection: false,
                     scrollBeyondLastLine: false,
+                    stickyScroll: { enabled: false },
                     wordWrap: 'on'
                   }}
                 />
