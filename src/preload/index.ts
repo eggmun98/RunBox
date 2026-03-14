@@ -1,7 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS } from '../shared/ipc'
 import type {
-  LanguageDefinition,
+  InstallRuntimeRequest,
+  InstallRuntimeResult,
+  LanguageProfile,
+  LanguageRuntimeStateEvent,
   RunRequest,
   RunStartResult,
   RunnerEvent,
@@ -10,7 +13,9 @@ import type {
 import type { UpdateActionResult, UpdateState } from '../shared/update'
 
 export interface DesktopApi {
-  getLanguages: () => Promise<LanguageDefinition[]>
+  getLanguages: () => Promise<LanguageProfile[]>
+  installLanguageRuntime: (request: InstallRuntimeRequest) => Promise<InstallRuntimeResult>
+  onLanguageRuntimeState: (listener: (event: LanguageRuntimeStateEvent) => void) => () => void
   runCode: (request: RunRequest) => Promise<RunStartResult>
   stopRun: () => Promise<StopResult>
   onRunnerEvent: (listener: (event: RunnerEvent) => void) => () => void
@@ -23,6 +28,23 @@ export interface DesktopApi {
 const desktopApi: DesktopApi = {
   getLanguages: () => {
     return ipcRenderer.invoke(IPC_CHANNELS.listLanguages)
+  },
+  installLanguageRuntime: (request) => {
+    return ipcRenderer.invoke(IPC_CHANNELS.installLanguageRuntime, request)
+  },
+  onLanguageRuntimeState: (listener) => {
+    const wrappedListener = (
+      _event: Electron.IpcRendererEvent,
+      data: LanguageRuntimeStateEvent
+    ) => {
+      listener(data)
+    }
+
+    ipcRenderer.on(IPC_CHANNELS.languageRuntimeState, wrappedListener)
+
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.languageRuntimeState, wrappedListener)
+    }
   },
   runCode: (request) => {
     return ipcRenderer.invoke(IPC_CHANNELS.runCode, request)

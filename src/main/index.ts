@@ -1,8 +1,9 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { IPC_CHANNELS } from '../shared/ipc'
-import type { RunRequest } from '../shared/runner'
+import type { InstallRuntimeRequest, RunRequest } from '../shared/runner'
 import { RunManager } from './run-manager'
+import { LanguageRuntimeManager } from './runtime-manager'
 import { listLanguages } from './runners/registry'
 import { UpdateManager } from './update-manager'
 
@@ -11,6 +12,12 @@ let mainWindow: BrowserWindow | null = null
 const runManager = new RunManager({
   onEvent: (event) => {
     mainWindow?.webContents.send(IPC_CHANNELS.runnerEvent, event)
+  }
+})
+
+const runtimeManager = new LanguageRuntimeManager({
+  onState: (event) => {
+    mainWindow?.webContents.send(IPC_CHANNELS.languageRuntimeState, event)
   }
 })
 
@@ -43,9 +50,16 @@ function createWindow(): void {
 }
 
 function registerIpc(): void {
-  ipcMain.handle(IPC_CHANNELS.listLanguages, () => {
-    return listLanguages()
+  ipcMain.handle(IPC_CHANNELS.listLanguages, async () => {
+    return runtimeManager.listLanguageProfiles(listLanguages())
   })
+
+  ipcMain.handle(
+    IPC_CHANNELS.installLanguageRuntime,
+    (_event, request: InstallRuntimeRequest) => {
+      return runtimeManager.install(request.languageId)
+    }
+  )
 
   ipcMain.handle(IPC_CHANNELS.runCode, (_event, request: RunRequest) => {
     return runManager.run(request)

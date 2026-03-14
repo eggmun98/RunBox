@@ -1,9 +1,11 @@
 import type { LanguageDefinition } from '../../shared/runner'
 import { javascriptRunner } from './javascript'
+import { pythonRunner } from './python'
 import type { LanguageRunner } from './types'
 
 const runners = new Map<string, LanguageRunner>([
-  [javascriptRunner.definition.id, javascriptRunner]
+  [javascriptRunner.definition.id, javascriptRunner],
+  [pythonRunner.definition.id, pythonRunner]
 ])
 
 export function listLanguages(): LanguageDefinition[] {
@@ -19,4 +21,3 @@ export function resolveRunner(languageId: string): LanguageRunner {
 
   return runner
 }
-

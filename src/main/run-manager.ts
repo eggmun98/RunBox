@@ -42,7 +42,10 @@ export class RunManager {
     const preparedRun = await runner.prepare(request.code)
     const child = spawn(preparedRun.command, preparedRun.args, {
       cwd: preparedRun.cwd,
-      env: process.env,
+      env: {
+        ...process.env,
+        ...preparedRun.env
+      },
       stdio: ['ignore', 'pipe', 'pipe']
     })
     const runId = randomUUID()

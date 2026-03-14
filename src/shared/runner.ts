@@ -7,6 +7,41 @@ export interface LanguageDefinition {
   template: string
 }
 
+export type LanguageRuntimeStatus = 'ready' | 'missing' | 'installing' | 'error'
+
+export type LanguageRuntimeSource =
+  | 'builtin'
+  | 'bundled'
+  | 'downloaded'
+  | 'system'
+  | 'unknown'
+
+export interface LanguageRuntimeState {
+  status: LanguageRuntimeStatus
+  source: LanguageRuntimeSource
+  detail: string
+  progress?: number | null
+  version?: string | null
+}
+
+export interface LanguageProfile extends LanguageDefinition {
+  runtime: LanguageRuntimeState
+}
+
+export interface InstallRuntimeRequest {
+  languageId: string
+}
+
+export interface InstallRuntimeResult {
+  languageId: string
+  state: LanguageRuntimeState
+}
+
+export interface LanguageRuntimeStateEvent {
+  languageId: string
+  state: LanguageRuntimeState
+}
+
 export interface RunRequest {
   languageId: string
   code: string
@@ -63,4 +98,3 @@ export type RunnerEvent =
   | RunnerExitEvent
   | RunnerStoppedEvent
   | RunnerErrorEvent
-

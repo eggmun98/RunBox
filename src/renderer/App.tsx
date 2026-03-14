@@ -4,7 +4,12 @@ import type {
   CSSProperties,
   PointerEvent as ReactPointerEvent
 } from 'react'
-import type { LanguageDefinition, RunnerEvent } from '../shared/runner'
+import type {
+  LanguageDefinition,
+  LanguageProfile,
+  LanguageRuntimeState,
+  RunnerEvent
+} from '../shared/runner'
 
 const DEFAULT_TIMEOUT_MS = 4000
 const AUTO_RUN_DELAY_MS = 650
@@ -47,6 +52,49 @@ function describeExitCode(exitCode: number | null): string {
 
 function getLanguageLabel(languageId: string, languages: LanguageDefinition[]): string {
   return languages.find((language) => language.id === languageId)?.displayName ?? languageId
+}
+
+function getLanguageOptionLabel(language: LanguageProfile): string {
+  if (language.runtime.status === 'installing') {
+    return `${language.displayName} · Installing`
+  }
+
+  if (language.runtime.status === 'missing') {
+    return `${language.displayName} · Install`
+  }
+
+  if (language.runtime.status === 'error') {
+    return `${language.displayName} · Setup`
+  }
+
+  return language.displayName
+}
+
+function getPrimaryActionLabel(language: LanguageProfile | null): string {
+  if (!language) {
+    return 'Run now'
+  }
+
+  if (language.runtime.status === 'installing') {
+    const progressLabel =
+      typeof language.runtime.progress === 'number' ? ` ${language.runtime.progress}%` : ''
+
+    return `Installing${progressLabel}`
+  }
+
+  if (language.runtime.status === 'missing') {
+    return `Install ${language.displayName}`
+  }
+
+  if (language.runtime.status === 'error') {
+    return `Retry ${language.displayName}`
+  }
+
+  return 'Run now'
+}
+
+function canRunLanguage(language: LanguageProfile | null): boolean {
+  return language?.runtime.status === 'ready'
 }
 
 function createWorkspaceTab(language: LanguageDefinition, title: string): WorkspaceTab {
@@ -227,7 +275,7 @@ function buildInitialWorkspace(languages: LanguageDefinition[]): {
 }
 
 export default function App(): JSX.Element {
-  const [languages, setLanguages] = useState<LanguageDefinition[]>([])
+  const [languages, setLanguages] = useState<LanguageProfile[]>([])
   const [tabs, setTabs] = useState<WorkspaceTab[]>([])
   const [activeTabId, setActiveTabId] = useState('')
   const [autoRun, setAutoRun] = useState(true)
@@ -243,6 +291,7 @@ export default function App(): JSX.Element {
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null
   const selectedLanguage =
     languages.find((language) => language.id === activeTab?.languageId) ?? null
+  const canRunSelectedLanguage = canRunLanguage(selectedLanguage)
   const splitPaneStyle = {
     '--editor-width': `${editorWidthPercent}%`
   } as CSSProperties
@@ -279,6 +328,23 @@ export default function App(): JSX.Element {
     return () => {
       mounted = false
     }
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = window.runbox.onLanguageRuntimeState((event) => {
+      setLanguages((currentLanguages) =>
+        currentLanguages.map((language) =>
+          language.id === event.languageId
+            ? {
+                ...language,
+                runtime: event.state
+              }
+            : language
+        )
+      )
+    })
+
+    return unsubscribe
   }, [])
 
   useEffect(() => {
@@ -389,7 +455,7 @@ export default function App(): JSX.Element {
   }, [languages])
 
   useEffect(() => {
-    if (!bootstrappedRef.current || !autoRun || !activeTab) {
+    if (!bootstrappedRef.current || !autoRun || !activeTab || !canRunSelectedLanguage) {
       return
     }
 
@@ -400,7 +466,30 @@ export default function App(): JSX.Element {
     return () => {
       window.clearTimeout(timer)
     }
-  }, [autoRun, activeTab?.code, activeTab?.languageId, activeTab?.id, timeoutMs])
+  }, [
+    autoRun,
+    activeTab?.code,
+    activeTab?.languageId,
+    activeTab?.id,
+    canRunSelectedLanguage,
+    timeoutMs
+  ])
+
+  function updateLanguageRuntime(
+    languageId: string,
+    runtime: LanguageRuntimeState
+  ): void {
+    setLanguages((currentLanguages) =>
+      currentLanguages.map((language) =>
+        language.id === languageId
+          ? {
+              ...language,
+              runtime
+            }
+          : language
+      )
+    )
+  }
 
   function updateActiveTab(
     updater: (tab: WorkspaceTab) => WorkspaceTab,
@@ -462,7 +551,9 @@ export default function App(): JSX.Element {
       ...tab,
       languageId,
       code: tab.code.trim() ? tab.code : nextLanguage.template,
-      status: `Language set to ${nextLanguage.displayName}.`
+      status: canRunLanguage(nextLanguage)
+        ? `Language set to ${nextLanguage.displayName}.`
+        : nextLanguage.runtime.detail
     }))
   }
 
@@ -543,8 +634,24 @@ export default function App(): JSX.Element {
 
   async function runCode(targetTabId = activeTabId): Promise<void> {
     const targetTab = tabs.find((tab) => tab.id === targetTabId)
+    const targetLanguage =
+      languages.find((language) => language.id === targetTab?.languageId) ?? null
 
-    if (!targetTab) {
+    if (!targetTab || !targetLanguage) {
+      return
+    }
+
+    if (!canRunLanguage(targetLanguage)) {
+      setTabs((currentTabs) =>
+        currentTabs.map((tab) =>
+          tab.id === targetTabId
+            ? {
+                ...tab,
+                status: targetLanguage.runtime.detail
+              }
+            : tab
+        )
+      )
       return
     }
 
@@ -590,6 +697,51 @@ export default function App(): JSX.Element {
     await window.runbox.stopRun()
   }
 
+  async function installLanguageRuntime(languageId = activeTab?.languageId ?? ''): Promise<void> {
+    const targetLanguage = languages.find((language) => language.id === languageId)
+
+    if (!targetLanguage || targetLanguage.runtime.status === 'installing') {
+      return
+    }
+
+    updateLanguageRuntime(languageId, {
+      status: 'installing',
+      source: 'downloaded',
+      detail: `Preparing ${targetLanguage.displayName} runtime...`,
+      progress: 0,
+      version: targetLanguage.runtime.version ?? null
+    })
+
+    try {
+      const result = await window.runbox.installLanguageRuntime({
+        languageId
+      })
+
+      updateLanguageRuntime(result.languageId, result.state)
+    } catch (error) {
+      updateLanguageRuntime(languageId, {
+        status: 'error',
+        source: 'unknown',
+        detail: error instanceof Error ? error.message : String(error),
+        progress: null,
+        version: targetLanguage.runtime.version ?? null
+      })
+    }
+  }
+
+  async function handlePrimaryAction(): Promise<void> {
+    if (!selectedLanguage) {
+      return
+    }
+
+    if (canRunLanguage(selectedLanguage)) {
+      await runCode()
+      return
+    }
+
+    await installLanguageRuntime(selectedLanguage.id)
+  }
+
   return (
     <main className="shell">
       <section className="workspace">
@@ -614,10 +766,13 @@ export default function App(): JSX.Element {
                 >
                   {languages.map((language) => (
                     <option key={language.id} value={language.id}>
-                      {language.displayName}
+                      {getLanguageOptionLabel(language)}
                     </option>
                   ))}
                 </select>
+                {selectedLanguage && !canRunLanguage(selectedLanguage) ? (
+                  <span className="control-note">{selectedLanguage.runtime.detail}</span>
+                ) : null}
               </label>
 
               <label className="control toggle">
@@ -650,9 +805,10 @@ export default function App(): JSX.Element {
                 <button
                   type="button"
                   className="primary-button"
-                  onClick={() => void runCode()}
+                  onClick={() => void handlePrimaryAction()}
+                  disabled={!activeTab || selectedLanguage?.runtime.status === 'installing'}
                 >
-                  Run now
+                  {getPrimaryActionLabel(selectedLanguage)}
                 </button>
               </div>
             </div>
