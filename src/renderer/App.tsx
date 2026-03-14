@@ -595,10 +595,6 @@ export default function App(): JSX.Element {
       <section className="workspace">
         <header className="toolbar">
           <div className="brand-block">
-            <p className="eyebrow">
-              <span className="eyebrow-pulse"></span>
-              Local-first desktop playground
-            </p>
             <div className="brand-heading">
               <span className="brand-mark">R</span>
               <div className="brand-copy">
